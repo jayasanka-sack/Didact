@@ -24,22 +24,43 @@ function createDom(fibre) {
     });
     return dom;
 }
+function commitRoot() {
+    commitWork(wipRoot.child);
+    currentRoot = wipRoot;
+    wipRoot = null;
+}
+function commitWork(fiber) {
+    if (!fiber) {
+        return;
+    }
+    const domParent = fiber.parent.dom;
+    domParent.appendChild(fiber.dom);
+    commitWork(fiber.child);
+    commitWork(fiber.sibling);
+}
 function render(element, container) {
-    nextUnitOfWork = {
+    wipRoot = {
         dom: container,
         props: {
             children: [
                 element
             ]
-        }
+        },
+        alternate: currentRoot
     };
+    nextUnitOfWork = wipRoot;
 }
 let nextUnitOfWork = null;
+let currentRoot = null;
+let wipRoot = null;
 function workLoop(deadline) {
     let shouldYield = false;
     while(nextUnitOfWork && !shouldYield){
         nextUnitOfWork = performUnitOfWork(nextUnitOfWork);
         shouldYield = deadline.timeRemaining() < 1;
+    }
+    if (!nextUnitOfWork && wipRoot) {
+        commitRoot();
     }
     requestIdleCallback(workLoop);
 }
@@ -48,17 +69,14 @@ function performUnitOfWork(fiber) {
     if (!fiber.dom) {
         fiber.dom = createDom(fiber);
     }
-    if (fiber.parent) {
-        fiber.parent.dom.appendChild(fiber.dom);
-    }
     const elements = fiber.props.children;
     let index = 0;
     let prevSibling = null;
     while(index < elements.length){
-        const element1 = elements[index];
+        const element = elements[index];
         const newFiber = {
-            type: element1.type,
-            props: element1.props,
+            type: element.type,
+            props: element.props,
             parent: fiber,
             dom: null
         };
